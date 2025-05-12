@@ -61,46 +61,6 @@ public:
     return retries;
   }
 
-  // Set the communication channel for the radio.
-  void SetChannel(int channel) {
-    radio.setChannel(channel);
-  }
-
-  // Get the current communication channel of the radio.
-  int GetChannel() {
-    return radio.getChannel();
-  }
-
-  // Set the data rate for communication.
-  void SetDataRate(rf24_datarate_e rate) {
-    radio.setDataRate(rate);
-  }
-
-  // Get the current data rate of the radio.
-  uint8_t GetDataRate() {
-    return radio.getDataRate();
-  }
-
-  // Set the power amplifier level for the radio.
-  void SetPALevel(uint8_t level) {
-    radio.setPALevel(level);
-  }
-
-  // Get the current power amplifier level of the radio.
-  uint8_t GetPALevel() {
-    return radio.getPALevel();
-  }
-
-  // Configure the writing pipe address for sending messages.
-  void SetWritingPipe(uint64_t pipe) {
-    radio.openWritingPipe(pipe);
-  }
-
-  // Configure the reading pipe address for receiving messages.
-  void SetReadingPipe(uint64_t pipe) {
-    radio.openReadingPipe(1, pipe);
-  }
-
   // Start listening for incoming messages.
   void StartListening() {
     radio.startListening();
