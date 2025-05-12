@@ -3,8 +3,7 @@
 #include <nrf24L01.h>
 // put function declarations here:
 int myFunction(int, int);
-RF24 radio = RF24(9, 10); // CE pin 9, CSN pin 10
-int retries;
+
 
 // Define a structure to represent a message that will be sent or received via the NRF24 module.
 struct Message {
@@ -127,36 +126,35 @@ public:
     radio.write(buf, len);
   }
 
-  // Print detailed information about the radio's configuration.
-  void PrintDetails() {
-    radio.printDetails();
-  }
-
-  // Print the current communication channel to the Serial Monitor.
-  void PrintChannel() {
-    Serial.print("Channel: ");
-    Serial.println(radio.getChannel());
-  }
-
-  // Print the current data rate to the Serial Monitor.
-  void PrintDataRate() {
-    Serial.print("Data Rate: ");
-    Serial.println(radio.getDataRate());
-  }
+  private:
+    RF24 radio; // Instance of the RF24 class for radio communication.
+    int retries; // Number of retries for failed transmissions.
+    uint8_t deviceID; // Communication channel for the radio.
+    
 };
 
 class BaseSpeak : public DeviceSpeak {
 public:
   void Init() {
+    // Attempt to initialize the radio. If it fails, print an error message.
     if (!radio.begin()) {
       Serial.println("Radio failed to initialize!");
       return;
     }
+    // Set the communication channel for the radio (1 in this case).
     radio.setChannel(1);
+    // Set the data rate for communication (250 kbps in this case).
     radio.setDataRate(RF24_250KBPS);
+    // Set the power amplifier level to high for better range.
     radio.setPALevel(RF24_PA_HIGH);
-    radio.openWritingPipe(0xF0F0F0F0E1LL);
-    radio.openReadingPipe(1, 0xF0F0F0F0D2LL);
+    // Configure the writing pipe address (used for sending messages).
+    radio.openReadingPipe(0xF0F0F0F0C1LL);
+    radio.openReadingPipe(0xF0F0F0F0C2LL);
+    radio.openReadingPipe(0xF0F0F0F0C3LL);
+    radio.openReadingPipe(0xF0F0F0F0C4LL);
+    // Configure the reading pipe address (used for receiving messages).
+    radio.openWritingPipe(1, 0xF0F0F0F0D2LL);
+    // Start listening for incoming messages.
     radio.startListening();
   }
 private:
@@ -165,30 +163,50 @@ private:
 
 class ControllerSpeak {
 public:
-  void Init() {
+ void Init() {
+    // Attempt to initialize the radio. If it fails, print an error message.
     if (!radio.begin()) {
       Serial.println("Radio failed to initialize!");
       return;
     }
+    // Set the communication channel for the radio (1 in this case).
     radio.setChannel(1);
+    // Set the data rate for communication (250 kbps in this case).
     radio.setDataRate(RF24_250KBPS);
+    // Set the power amplifier level to high for better range.
     radio.setPALevel(RF24_PA_HIGH);
-    radio.openWritingPipe(0xF0F0F0F0D2LL);
-    radio.openReadingPipe(1, 0xF0F0F0F0E1LL);
-    radio.startListening();
-  }
-  void SendMessage(Message msg) {
-    radio.stopListening();
-    radio.write(&msg, sizeof(msg));
-    radio.startListening();
-  }
-  bool ReceiveMessage(Message &msg) {
-    if (radio.available()) {
-      radio.read(&msg, sizeof(msg));
-      return true;
+    // Configure the writing pipe address (used for sending messages).
+    switch (BaseSpeak.deviceID) {
+    case 1:
+      radio.openWritingPipe(0xF0F0F0F0C1LL);
+      break;
+    case 2:
+      radio.openWritingPipe(0xF0F0F0F0C2LL);
+      break;
+    case 3:
+      radio.openWritingPipe(0xF0F0F0F0C3LL);
+      break;
+    case 4:
+      radio.openWritingPipe(0xF0F0F0F0C4LL);
+      break;
+    default:
+      radio.openWritingPipe(0xF0F0F0F0EELL); // Default to device EE for debugging if device loads uninitialized.
+      break;
     }
-    return false;
-  } 
+    // Configure the reading pipe address (used for receiving messages).
+    radio.openReadingPipe(1, 0xF0F0F0F0BBLL);
+    // Start listening for incoming messages.
+    radio.startListening();
+  }
+   
+  void SendButtonPress(int buttonID) {
+    Message msg;
+    msg.id = buttonID; // Set the message ID to the button ID.
+    msg.command = 'P'; // Set the command to 'P' for button press.
+    radio.stopListening(); // Stop listening to prepare for sending.
+    radio.write(&msg, sizeof(msg)); // Write the message to the radio.
+    radio.startListening(); // Resume listening after sending.
+  }
 };
 
 void setup() {
