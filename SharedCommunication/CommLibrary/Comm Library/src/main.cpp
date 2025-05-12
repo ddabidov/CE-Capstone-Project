@@ -1,9 +1,11 @@
 #include <Arduino.h>
-#include <RF24.h>
-#include <nrf24L01.h>
+#include "RF24.h"
 // put function declarations here:
 int myFunction(int, int);
-
+#define CE_PIN 7
+#define CSN_PIN 8
+// instantiate an object for the nRF24L01 transceiver
+RF24 radio(CE_PIN, CSN_PIN);
 
 // Define a structure to represent a message that will be sent or received via the NRF24 module.
 struct Message {
@@ -38,7 +40,14 @@ public:
   // Send a message to the configured writing pipe.
   void SendMessage(Message msg) {
     radio.stopListening(); // Stop listening to prepare for sending.
-    radio.write(&msg, sizeof(msg)); // Write the message to the radio.
+
+    bool success = radio.write(&msg, sizeof(msg));
+    if (success) {
+      Serial.println("Message sent successfully!");
+    } else {
+      Serial.println("Message failed to send!");
+    } // Write the message to the radio.
+
     radio.startListening(); // Resume listening after sending.
   }
 
@@ -54,6 +63,7 @@ public:
   // Set the number of retries for failed transmissions.
   void SetRetries(int r) {
     retries = r;
+    radio.setRetries(retries, 15); // Set the number of retries and delay between retries.
   }
 
   // Get the current number of retries for failed transmissions.
@@ -87,9 +97,10 @@ public:
   }
 
   private:
-    RF24 radio; // Instance of the RF24 class for radio communication.
     int retries; // Number of retries for failed transmissions.
     uint8_t deviceID; // Communication channel for the radio.
+    Message msg;
+
     
 };
 
@@ -108,12 +119,12 @@ public:
     // Set the power amplifier level to high for better range.
     radio.setPALevel(RF24_PA_HIGH);
     // Configure the writing pipe address (used for sending messages).
-    radio.openReadingPipe(0xF0F0F0F0C1LL);
-    radio.openReadingPipe(0xF0F0F0F0C2LL);
-    radio.openReadingPipe(0xF0F0F0F0C3LL);
-    radio.openReadingPipe(0xF0F0F0F0C4LL);
+    radio.openReadingPipe(1, 0xF0F0F0F0C1LL);
+    radio.openReadingPipe(2, 0xF0F0F0F0C2LL);
+    radio.openReadingPipe(3, 0xF0F0F0F0C3LL);
+    radio.openReadingPipe(4, 0xF0F0F0F0C4LL);
     // Configure the reading pipe address (used for receiving messages).
-    radio.openWritingPipe(1, 0xF0F0F0F0D2LL);
+    radio.openWritingPipe(0xF0F0F0F0D2LL);
     // Start listening for incoming messages.
     radio.startListening();
   }
@@ -136,7 +147,7 @@ public:
     // Set the power amplifier level to high for better range.
     radio.setPALevel(RF24_PA_HIGH);
     // Configure the writing pipe address (used for sending messages).
-    switch (BaseSpeak.deviceID) {
+    switch (ControllerSpeak.deviceID) {
     case 1:
       radio.openWritingPipe(0xF0F0F0F0C1LL);
       break;
@@ -160,11 +171,10 @@ public:
   }
    
   void SendButtonPress(int buttonID) {
-    Message msg;
-    msg.id = buttonID; // Set the message ID to the button ID.
-    msg.command = 'P'; // Set the command to 'P' for button press.
+    ControllerSpeak.msg.id = buttonID; // Set the message ID to the button ID.
+    ControllerSpeak.msg.command = 'P'; // Set the command to 'P' for button press.
     radio.stopListening(); // Stop listening to prepare for sending.
-    radio.write(&msg, sizeof(msg)); // Write the message to the radio.
+    radio.write(&ControllerSpeak.msg, sizeof(ControllerSpeak.msg)); // Write the message to the radio.
     radio.startListening(); // Resume listening after sending.
   }
 };
