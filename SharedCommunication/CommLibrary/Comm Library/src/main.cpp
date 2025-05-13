@@ -96,7 +96,7 @@ public:
     radio.write(buf, len);
   }
 
-  private:
+  protected:
     int retries; // Number of retries for failed transmissions.
     uint8_t deviceID; // Communication channel for the radio.
     Message msg;
@@ -128,6 +128,19 @@ public:
     // Start listening for incoming messages.
     radio.startListening();
   }
+
+  void SendMessage(Message msg) {
+    radio.stopListening(); // Stop listening to prepare for sending.
+
+    if (radio.write(&msg, sizeof(msg));) {
+      Serial.println("Message sent successfully!");
+    } else {
+      Serial.println("Message failed to send!");
+    } // Write the message to the radio
+
+
+    radio.startListening(); // Resume listening after sending.
+  }
 private:
   
 };
@@ -147,7 +160,7 @@ public:
     // Set the power amplifier level to high for better range.
     radio.setPALevel(RF24_PA_HIGH);
     // Configure the writing pipe address (used for sending messages).
-    switch (ControllerSpeak.deviceID) {
+    switch (deviceID) {
     case 1:
       radio.openWritingPipe(0xF0F0F0F0C1LL);
       break;
@@ -171,10 +184,10 @@ public:
   }
    
   void SendButtonPress(int buttonID) {
-    ControllerSpeak.msg.id = buttonID; // Set the message ID to the button ID.
-    ControllerSpeak.msg.command = 'P'; // Set the command to 'P' for button press.
+    msg.id = buttonID; // Set the message ID to the button ID.
+    msg.command = 'P'; // Set the command to 'P' for button press.
     radio.stopListening(); // Stop listening to prepare for sending.
-    radio.write(&ControllerSpeak.msg, sizeof(ControllerSpeak.msg)); // Write the message to the radio.
+    radio.write(&msg, sizeof(msg)); // Write the message to the radio.
     radio.startListening(); // Resume listening after sending.
   }
 };
