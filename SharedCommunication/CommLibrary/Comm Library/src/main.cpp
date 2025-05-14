@@ -198,21 +198,47 @@ public:
     int deviceID; // Communication channel for the radio.
     Message msg; // Message object to hold the message data.
 };
+uint8_t isBase = 0
+BaseSpeak Station; // Create an instance of the BaseSpeak class.
+ControllerSpeak Controller; // Create an instance of the ControllerSpeak class.
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+
+  switch (isBase)
+  {
+  case 0:
+    Controller.deviceID = 1; // Set the device ID for the ControllerSpeak object.
+    Controller.Init(); // Initialize the ControllerSpeak object.
+    break;
+  case 1:
+    Station.Init(); // Initialize the BaseSpeak object.
+  default:
+    break;
+  }
 }
 
-BaseSpeak Station; // Create an instance of the BaseSpeak class.
 void loop() {
   // put your main code here, to run repeatedly:
-  Station.Init(); // Initialize the BaseSpeak object.
-  Station.SendMessage({1, 'A'}); // Send a message with ID 1 and command 'A'.
-  delay(1000); // Wait for 1 second before sending the next message.
+
+  switch (isBase){
+    case 0:
+      if (Controller.Available()) { // Check if a message is available to read.
+      Controller.Read(&Controller.msg, sizeof(Controller.msg)); // Read the data into the provided message object.
+      Serial.print("Received message ID: ");
+      Serial.println(Controller.msg.id); // Print the received message ID to the serial monitor.
+    } else {
+      Serial.println("No message available."); // Print a message indicating no data is available.
+  }
+      break;
+    case 1:
+      Station.SendMessage({1, 'A'}); // Send a message with ID 1 and command 'A'.
+      Serial.println("Message sent!"); // Print a confirmation message to the serial monitor.
+      delay(1000); // Wait for 1 second before sending the next message.
+
+      break;
+    default:
+      break;
+  }
+  
 }
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
-}
