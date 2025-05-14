@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "RF24.h"
 // put function declarations here:
+#define RF24_CONFIG_H
 int myFunction(int, int);
 #define CE_PIN 7
 #define CSN_PIN 8
@@ -132,7 +133,7 @@ public:
   void SendMessage(Message msg) {
     radio.stopListening(); // Stop listening to prepare for sending.
 
-    if (radio.write(&msg, sizeof(msg));) {
+    if (radio.write(&msg, sizeof(msg))) {
       Serial.println("Message sent successfully!");
     } else {
       Serial.println("Message failed to send!");
@@ -141,8 +142,10 @@ public:
 
     radio.startListening(); // Resume listening after sending.
   }
-private:
-  
+  protected:
+  Message msg; // Message object to hold the message data.
+  uint8_t deviceID; // Communication channel for the radio.
+  int retries; // Number of retries for failed transmissions.
 };
 
 class ControllerSpeak {
@@ -190,6 +193,10 @@ public:
     radio.write(&msg, sizeof(msg)); // Write the message to the radio.
     radio.startListening(); // Resume listening after sending.
   }
+
+  protected:
+    int deviceID; // Communication channel for the radio.
+    Message msg; // Message object to hold the message data.
 };
 
 void setup() {
@@ -197,9 +204,12 @@ void setup() {
   int result = myFunction(2, 3);
 }
 
+BaseSpeak Station; // Create an instance of the BaseSpeak class.
 void loop() {
   // put your main code here, to run repeatedly:
-  Serial.println("Hello, Serial Monitor!");
+  Station.Init(); // Initialize the BaseSpeak object.
+  Station.SendMessage({1, 'A'}); // Send a message with ID 1 and command 'A'.
+  delay(1000); // Wait for 1 second before sending the next message.
 }
 
 // put function definitions here:
