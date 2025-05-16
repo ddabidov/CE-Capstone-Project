@@ -12,11 +12,43 @@ RF24 radio(CE_PIN, CSN_PIN);
 struct Message {
   int id;          // An integer identifier for the message.
   char command;    // A single character representing the command or action.
+  uint8_t data[3]; // An array of bytes to hold additional data (up to 32 bytes).
 };
+
+enum BaseCommandType {
+  START_CONNECTION,
+  ROUND_START,
+  ROUND_WON,
+  WRONG_BUTTON,
+  ROUND_LOST,
+  ROUND_END,
+  SCORE_UPDATE,
+  GAME_START,
+  GAME_WON,
+  GAME_LOST
+  };
+
+  enum ControllerCommandType {
+    BUTTON_PRESS,
+    LOW_BATTERY
+  };
+
+  enum ButtonType {
+    STAR,
+    SQUARE,
+    TRIANGLE,
+    HEXAGON
+  };
 
 // Define a class to encapsulate communication functionality for a device using the NRF24 module.
 class DeviceSpeak {
 public:
+
+  int retries; // Number of retries for failed transmissions.
+  uint8_t deviceID; // Communication channel for the radio.
+  Message transmission;
+
+
   // Initialize the NRF24 module with default settings.
   void Init() {
     // Attempt to initialize the radio. If it fails, print an error message.
@@ -97,11 +129,6 @@ public:
     radio.write(buf, len);
   }
 
-  protected:
-    int retries; // Number of retries for failed transmissions.
-    uint8_t deviceID; // Communication channel for the radio.
-    Message msg;
-
     
 };
 
@@ -125,7 +152,7 @@ public:
     radio.openReadingPipe(3, 0xF0F0F0F0C3LL);
     radio.openReadingPipe(4, 0xF0F0F0F0C4LL);
     // Configure the reading pipe address (used for receiving messages).
-    radio.openWritingPipe(0xF0F0F0F0D2LL);
+    radio.openWritingPipe(0xF0F0F0F0BBLL);
     // Start listening for incoming messages.
     radio.startListening();
   }
@@ -142,13 +169,19 @@ public:
 
     radio.startListening(); // Resume listening after sending.
   }
-  protected:
-  Message msg; // Message object to hold the message data.
-  uint8_t deviceID; // Communication channel for the radio.
-  int retries; // Number of retries for failed transmissions.
+
+  bool PollController(Message &msg) {
+    if (radio.available()) { // Check if data is available to read.
+      radio.read(&msg, sizeof(msg));
+      switch(msg.command) // Read the data into the provided message object.
+      return true; // Indicate that a message was successfully received.
+    }
+    return false; // No message was available.
+  } 
+
 };
 
-class ControllerSpeak {
+class ControllerSpeak : public DeviceSpeak {
 public:
  void Init() {
     // Attempt to initialize the radio. If it fails, print an error message.
@@ -187,18 +220,16 @@ public:
   }
    
   void SendButtonPress(int buttonID) {
-    msg.id = buttonID; // Set the message ID to the button ID.
-    msg.command = 'P'; // Set the command to 'P' for button press.
+    transmission.id = buttonID; // Set the message ID to the button ID.
+    transmission.command = 'P'; // Set the command to 'P' for button press.
     radio.stopListening(); // Stop listening to prepare for sending.
-    radio.write(&msg, sizeof(msg)); // Write the message to the radio.
+    radio.write(&transmission, sizeof(transmission)); // Write the message to the radio.
     radio.startListening(); // Resume listening after sending.
   }
 
-  protected:
-    int deviceID; // Communication channel for the radio.
-    Message msg; // Message object to hold the message data.
+
 };
-uint8_t isBase = 0
+uint8_t isBase = 0;
 BaseSpeak Station; // Create an instance of the BaseSpeak class.
 ControllerSpeak Controller; // Create an instance of the ControllerSpeak class.
 
@@ -215,6 +246,7 @@ void setup() {
   default:
     break;
   }
+  void loop();
 }
 
 void loop() {
@@ -223,12 +255,14 @@ void loop() {
   switch (isBase){
     case 0:
       if (Controller.Available()) { // Check if a message is available to read.
-      Controller.Read(&Controller.msg, sizeof(Controller.msg)); // Read the data into the provided message object.
-      Serial.print("Received message ID: ");
-      Serial.println(Controller.msg.id); // Print the received message ID to the serial monitor.
-    } else {
+        if (Controller.ReceiveMessage(&Controller.transmission)){ // Read the data into the provided message object.
+          Serial.print("Received message ID: "); 
+          Serial.println(Controller.transmission.id); // Print the received message ID to the serial monitor.
+        }
+      } 
+      else {
       Serial.println("No message available."); // Print a message indicating no data is available.
-  }
+      }
       break;
     case 1:
       Station.SendMessage({1, 'A'}); // Send a message with ID 1 and command 'A'.
