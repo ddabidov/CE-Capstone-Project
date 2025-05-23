@@ -147,6 +147,8 @@ public:
     ControllerCommandType command;    // A single character representing the command or action.
     ButtonType button; 
   };
+  TxMessage transmission; // Message structure for transmission.
+  RxMessage reception; // Message structure for reception.
   void Init() {
     // Attempt to initialize the radio. If it fails, print an error message.
     if (!radio.begin()) {
@@ -170,7 +172,7 @@ public:
     radio.startListening();
   }
 
-  void SendMessage(Message msg) {
+  void SendMessage(TxMessage msg) {
     radio.stopListening(); // Stop listening to prepare for sending.
 
     if (radio.write(&msg, sizeof(msg))) {
@@ -183,7 +185,7 @@ public:
     radio.startListening(); // Resume listening after sending.
   }
 
-  bool PollController(Message &msg) {
+  bool PollController(RxMessage &msg) {
     if (Available()) { // Check if data is available to read.
       ReceiveMessage(msg); // Read the data into the provided message object.
       // switch(msg.command) // (Unfinished, left as in original)
@@ -211,6 +213,8 @@ public:
     ButtonType button; // An array of bytes to hold additional data (up to 32 bytes).
   };
 
+  TxMessage transmission; // Create an instance of the TxMessage structure to hold the message to be sent.
+  RxMessage reception; // Create an instance of the RxMessage structure to hold the received message.
  void Init() {
     // Attempt to initialize the radio. If it fails, print an error message.
     if (!radio.begin()) {
@@ -261,7 +265,7 @@ uint8_t isBase = 0;
 BaseSpeak Station; // Create an instance of the BaseSpeak class.
 ControllerSpeak Controller; // Create an instance of the ControllerSpeak class.
 
-void setup() {
+void CommSetup() {
   pinMode(25, OUTPUT);
   digitalWrite(25, LOW);
   switch (isBase)
@@ -275,10 +279,10 @@ void setup() {
   default:
     break;
   }
-  void loop();
+  void Commloop();
 }
 
-void loop() {
+void CommLoop() {
   // put your main code here, to run repeatedly:
  digitalWrite(25, LOW);
   switch (isBase){
