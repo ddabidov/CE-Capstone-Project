@@ -8,13 +8,6 @@ int myFunction(int, int);
 // instantiate an object for the nRF24L01 transceiver
 RF24 radio(CE_PIN, CSN_PIN);
 
-// Define a structure to represent a message that will be sent or received via the NRF24 module.
-struct Message {
-  int id;          // An integer identifier for the message.
-  char command;    // A single character representing the command or action.
-  uint8_t data[3]; // An array of bytes to hold additional data (up to 32 bytes).
-};
-
 enum BaseCommandType {
   START_CONNECTION,
   ROUND_START,
@@ -28,17 +21,24 @@ enum BaseCommandType {
   GAME_LOST
   };
 
-  enum ControllerCommandType {
-    BUTTON_PRESS,
-    LOW_BATTERY
-  };
+enum ControllerCommandType {
+  BUTTON_PRESS,
+  LOW_BATTERY
+};
 
-  enum ButtonType {
-    STAR,
-    SQUARE,
-    TRIANGLE,
-    HEXAGON
-  };
+enum ButtonType {
+  STAR,
+  SQUARE,
+  TRIANGLE,
+  HEXAGON
+};
+
+// Define a structure to represent a message that will be sent or received via the NRF24 module.
+struct Message {
+  uint8_t id;          // An integer identifier for the message.
+  char command;    // A single character representing the command or action.
+  uint8_t data[3]; // An array of bytes to hold additional data (up to 32 bytes).
+};
 
 // Define a class to encapsulate communication functionality for a device using the NRF24 module.
 class DeviceSpeak {
@@ -134,6 +134,19 @@ public:
 
 class BaseSpeak : public DeviceSpeak {
 public:
+  struct TxMessage
+  {
+    uint8_t id;          // An integer identifier for the message.
+    BaseCommandType command;    // A single character representing the command or action.
+    uint8_t data[3]; // An array of bytes to hold additional data (up to 32 bytes).
+  };
+
+  struct RxMessage
+  {
+    uint8_t id;          // An integer identifier for the message.
+    ControllerCommandType command;    // A single character representing the command or action.
+    uint8_t data[3]; // An array of bytes to hold additional data (up to 32 bytes).
+  };
   void Init() {
     // Attempt to initialize the radio. If it fails, print an error message.
     if (!radio.begin()) {
@@ -171,9 +184,9 @@ public:
   }
 
   bool PollController(Message &msg) {
-    if (radio.available()) { // Check if data is available to read.
-      radio.read(&msg, sizeof(msg));
-      switch(msg.command) // Read the data into the provided message object.
+    if (Available()) { // Check if data is available to read.
+      ReceiveMessage(msg); // Read the data into the provided message object.
+      // switch(msg.command) // (Unfinished, left as in original)
       return true; // Indicate that a message was successfully received.
     }
     return false; // No message was available.
@@ -183,6 +196,21 @@ public:
 
 class ControllerSpeak : public DeviceSpeak {
 public:
+
+  struct RxMessage
+  {
+    uint8_t id;          // An integer identifier for the message.
+    BaseCommandType command;    // A single character representing the command or action.
+    uint8_t data[3]; // An array of bytes to hold additional data (up to 32 bytes).
+  };
+
+  struct TxMessage
+  {
+    uint8_t id;          // An integer identifier for the message.
+    ControllerCommandType command;    // A single character representing the command or action.
+    uint8_t data[3]; // An array of bytes to hold additional data (up to 32 bytes).
+  };
+
  void Init() {
     // Attempt to initialize the radio. If it fails, print an error message.
     if (!radio.begin()) {
@@ -234,7 +262,7 @@ BaseSpeak Station; // Create an instance of the BaseSpeak class.
 ControllerSpeak Controller; // Create an instance of the ControllerSpeak class.
 
 void setup() {
-
+  pinMode(25, OUTPUT);
   switch (isBase)
   {
   case 0:
@@ -255,9 +283,14 @@ void loop() {
   switch (isBase){
     case 0:
       if (Controller.Available()) { // Check if a message is available to read.
-        if (Controller.ReceiveMessage(&Controller.transmission)){ // Read the data into the provided message object.
+        if (Controller.ReceiveMessage(Controller.transmission)){ // Read the data into the provided message object.
           Serial.print("Received message ID: "); 
           Serial.println(Controller.transmission.id); // Print the received message ID to the serial monitor.
+         // Turn LED on
+         digitalWrite(25, HIGH);
+         delay(500);
+         // Turn LED off
+          digitalWrite(25, LOW);
         }
       } 
       else {
