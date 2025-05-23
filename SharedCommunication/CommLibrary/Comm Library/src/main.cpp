@@ -145,7 +145,7 @@ public:
   {
     uint8_t id;          // An integer identifier for the message.
     ControllerCommandType command;    // A single character representing the command or action.
-    uint8_t data[3]; // An array of bytes to hold additional data (up to 32 bytes).
+    ButtonType button; 
   };
   void Init() {
     // Attempt to initialize the radio. If it fails, print an error message.
@@ -208,7 +208,7 @@ public:
   {
     uint8_t id;          // An integer identifier for the message.
     ControllerCommandType command;    // A single character representing the command or action.
-    uint8_t data[3]; // An array of bytes to hold additional data (up to 32 bytes).
+    ButtonType button; // An array of bytes to hold additional data (up to 32 bytes).
   };
 
  void Init() {
@@ -263,6 +263,7 @@ ControllerSpeak Controller; // Create an instance of the ControllerSpeak class.
 
 void setup() {
   pinMode(25, OUTPUT);
+  digitalWrite(25, LOW);
   switch (isBase)
   {
   case 0:
@@ -279,7 +280,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-
+ digitalWrite(25, LOW);
   switch (isBase){
     case 0:
       if (Controller.Available()) { // Check if a message is available to read.
@@ -288,7 +289,7 @@ void loop() {
           Serial.println(Controller.transmission.id); // Print the received message ID to the serial monitor.
          // Turn LED on
          digitalWrite(25, HIGH);
-         delay(500);
+         delay(100);
          // Turn LED off
           digitalWrite(25, LOW);
         }
