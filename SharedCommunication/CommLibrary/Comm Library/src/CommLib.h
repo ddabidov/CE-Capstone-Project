@@ -17,7 +17,8 @@ enum BaseCommandType {
   SCORE_UPDATE,
   GAME_START,
   GAME_WON,
-  GAME_LOST
+  GAME_LOST,
+  UPDATE_SCORE
 };
 
 enum ControllerCommandType {
