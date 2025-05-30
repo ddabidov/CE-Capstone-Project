@@ -104,7 +104,7 @@ bool BaseSpeak::ReceiveMessage(RxMessage &msg) {
 
 bool BaseSpeak::PollController(RxMessage &msg) {
     if (Available()) {
-        ReceiveMessage(&msg, sizeof(msg));
+        ReceiveMessage(msg);
         return true;
     }
     return false;
@@ -139,8 +139,16 @@ void ControllerSpeak::SendButtonPress(int buttonID) {
     radio.startListening();
 }
 
+bool ControllerSpeak::ReceiveMessage(RxMessage &msg) {
+    if (radio.available()) {
+        radio.read(&msg, sizeof(msg));
+        return true;
+    }
+    return false;
+}
+
 // Global variables
-uint8_t isBase = 0;
+uint8_t isBase = 1;
 BaseSpeak Station;
 ControllerSpeak Controller;
 
@@ -150,7 +158,7 @@ void CommSetup() {
     digitalWrite(25, LOW);
     switch (isBase) {
         case 0:
-            Controller.deviceID = 1;
+            Controller.transmission.id = 1;
             Controller.Init();
             break;
         case 1:
@@ -166,7 +174,7 @@ void CommLoop() {
     switch (isBase) {
         case 0:
             if (Controller.Available()) {
-                if (Controller.ReceiveMessage(&Controller.reception)) {
+                if (Controller.ReceiveMessage(Controller.reception)) {
                     Serial.print("Received message ID: ");
                     Serial.println(Controller.reception.id);
                     digitalWrite(25, HIGH);
@@ -178,8 +186,11 @@ void CommLoop() {
             }
             break;
         case 1:
-            Station.SendMessage({1, ROUND_START, {0, 0, 0}});
+            Station.SendMessage(Station.transmission);
             Serial.println("Message sent!");
+            digitalWrite(25, HIGH);
+            delay(100);
+            digitalWrite(25, LOW);
             delay(1000);
             break;
         default:

@@ -102,6 +102,7 @@ public:
 
   void Init();
   void SendButtonPress(int buttonID);
+  bool ReceiveMessage(RxMessage &msg);
 };
 
 // Global variables
