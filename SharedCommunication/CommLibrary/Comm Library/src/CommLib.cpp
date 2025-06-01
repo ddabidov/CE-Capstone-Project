@@ -119,7 +119,7 @@ void ControllerSpeak::Init() {
     radio.setChannel(1);
     radio.setDataRate(RF24_250KBPS);
     radio.setPALevel(RF24_PA_HIGH);
-    switch (deviceID) {
+    switch (transmission.id) {
         case 1: radio.openWritingPipe(0xF0F0F0F0C1LL); break;
         case 2: radio.openWritingPipe(0xF0F0F0F0C2LL); break;
         case 3: radio.openWritingPipe(0xF0F0F0F0C3LL); break;

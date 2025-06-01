@@ -1,0 +1,78 @@
+#pragma once
+#include <Arduino.h>
+#include "CommLib.h"
+
+// Simple API tester for CommLib
+class CommLibTester {
+public:
+    // Call this in setup()
+    static void Begin() {
+        Serial.begin(115200);
+        while (!Serial) { delay(10); }
+        Serial.println("CommLib API Tester Starting...");
+        Station.transmission.id = 1;
+        Station.Init();
+        CommSetup();
+    }
+
+    // Call this in loop()
+    static void Run() {
+        // Test sending and receiving for both base and controller
+        if (isBase) {
+            // Test BaseSpeak send
+            Station.transmission.id = 3;
+            Station.transmission.command = ROUND_START;
+            Station.transmission.data[0] = 1;
+            Station.transmission.data[1] = 2;
+            Station.transmission.data[2] = 3;
+            Station.SendMessage(Station.transmission);
+            Serial.println("Base: Sent test message.");
+
+            // Test BaseSpeak receive (simulate controller message)
+            if (Station.PollController(Station.reception)) {
+                Serial.print("Base: Received Controller message, id: ");
+                Serial.println(Station.reception.id);
+                Serial.print("Command: ");
+                Serial.println(Station.reception.command);
+                Serial.print("Button: ");
+                Serial.println(Station.reception.button);
+            } else {
+                Serial.println("Base: No controller message received.");
+            }
+            delay(1000);
+        } else {
+            // Test ControllerSpeak send
+            Controller.transmission.id = 2;
+            Controller.transmission.command = BUTTON_PRESS;
+            Controller.transmission.button = STAR;
+            Controller.SendButtonPress(Controller.transmission.id);
+            Serial.println("Controller: Sent button press.");
+
+            // Test ControllerSpeak receive (simulate base message)
+            if (Controller.ReceiveMessage(Controller.reception)) {
+                Serial.print("Controller: Received Base message, id: ");
+                Serial.println(Controller.reception.id);
+                Serial.print("Command: ");
+                Serial.println(Controller.reception.command);
+                Serial.print("Data: ");
+                Serial.print(Controller.reception.data[0]);
+                Serial.print(", ");
+                Serial.print(Controller.reception.data[1]);
+                Serial.print(", ");
+                Serial.println(Controller.reception.data[2]);
+            } else {
+                Serial.println("Controller: No base message received.");
+            }
+            delay(1000);
+        }
+    }
+};
+
+// PlatformIO/Arduino entry points
+void setup() {
+    CommLibTester::Begin();
+}
+
+void loop() {
+    CommLibTester::Run();
+}
