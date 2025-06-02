@@ -69,6 +69,9 @@ void DeviceSpeak::Write(const void *buf, size_t len) {
 
 // BaseSpeak method implementations
 void BaseSpeak::Init() {
+    while (!Serial) {
+    // some boards need to wait to ensure access to serial over USB
+   }
     if (!radio.begin()) {
         Serial.println("Radio failed to initialize!");
         return;

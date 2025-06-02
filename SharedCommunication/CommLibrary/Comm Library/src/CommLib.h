@@ -3,8 +3,8 @@
 #include "RF24.h"
 
 // Pin definitions
-#define CE_PIN 7
-#define CSN_PIN 8
+#define CE_PIN 22
+#define CSN_PIN 19
 
 // Enum definitions
 enum BaseCommandType {

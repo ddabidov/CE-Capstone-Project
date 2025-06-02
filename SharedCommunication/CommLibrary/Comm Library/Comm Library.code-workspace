@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "Starter",
+			"path": "../../../BaseStation/Starter"
+		},
+		{
+			"name": "Sensor Cluster",
+			"path": "../../../../../CE426/Realtime-Final-Project/Sensor Cluster"
+		}
+	],
+	"settings": {}
+}
