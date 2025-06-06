@@ -3,8 +3,8 @@
 #include "RF24.h"
 
 // Pin definitions
-#define CE_PIN 22
-#define CSN_PIN 19
+#define CE_PIN 20
+#define CSN_PIN PICO_DEFAULT_SPI_CSN_PIN
 
 // Enum definitions
 enum BaseCommandType {
