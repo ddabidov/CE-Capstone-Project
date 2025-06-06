@@ -1,6 +1,10 @@
+#define CE_PIN 20
+#define CSN_PIN PICO_DEFAULT_SPI_CSN_PIN
+
 #include <Arduino.h>
 #include "RF24.h"
 #include "CommLib.h"
+
 
 // Instantiate an object for the nRF24L01 transceiver
 RF24 radio(CE_PIN, CSN_PIN);
@@ -85,6 +89,7 @@ void BaseSpeak::Init() {
     radio.openReadingPipe(4, 0xF0F0F0F0C4LL);
     radio.openWritingPipe(0xF0F0F0F0BBLL);
     radio.startListening();
+    radio.flush_rx(); // Flush RX buffer at init
 }
 
 void BaseSpeak::SendMessage(TxMessage msg) {
@@ -100,15 +105,19 @@ void BaseSpeak::SendMessage(TxMessage msg) {
 bool BaseSpeak::ReceiveMessage(RxMessage &msg) {
     if (radio.available()) {
         radio.read(&msg, sizeof(msg));
-        return true;
+        radio.flush_rx(); // Clear RX buffer after reading
+        // Only treat as valid if id is in 1-4 range
+        if (msg.id >= 1 && msg.id <= 4) {
+            return true;
+        }
     }
     return false;
 }
 
 bool BaseSpeak::PollController(RxMessage &msg) {
     if (Available()) {
-        ReceiveMessage(msg);
-        return true;
+        bool got = ReceiveMessage(msg);
+        return got;
     }
     return false;
 }
