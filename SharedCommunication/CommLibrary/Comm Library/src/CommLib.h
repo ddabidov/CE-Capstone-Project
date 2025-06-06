@@ -26,10 +26,10 @@ enum ControllerCommandType {
 };
 
 enum ButtonType {
-  STAR,
   SQUARE,
-  TRIANGLE,
-  HEXAGON
+  STAR,
+  HECAGON,
+  TRIANGLE
 };
 
 // Message structure for generic device
