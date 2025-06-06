@@ -80,16 +80,18 @@ void BaseSpeak::Init() {
         Serial.println("Radio failed to initialize!");
         return;
     }
+    radio.powerDown();
+    delay(10);
+    radio.powerUp();
     radio.setChannel(1);
     radio.setDataRate(RF24_250KBPS);
     radio.setPALevel(RF24_PA_HIGH);
+    // Use a single pipe for all controllers
     radio.openReadingPipe(1, 0xF0F0F0F0C1LL);
-    radio.openReadingPipe(2, 0xF0F0F0F0C2LL);
-    radio.openReadingPipe(3, 0xF0F0F0F0C3LL);
-    radio.openReadingPipe(4, 0xF0F0F0F0C4LL);
     radio.openWritingPipe(0xF0F0F0F0BBLL);
-    radio.startListening();
     radio.flush_rx(); // Flush RX buffer at init
+    radio.startListening();
+    radio.flush_rx(); // Flush again after listening
 }
 
 void BaseSpeak::SendMessage(TxMessage msg) {
@@ -111,6 +113,10 @@ bool BaseSpeak::ReceiveMessage(RxMessage &msg) {
             return true;
         }
     }
+    // Optionally, check RX FIFO status
+    if (radio.available()) {
+        Serial.println("Warning: RX FIFO still not empty after read+flush!");
+    }
     return false;
 }
 
@@ -128,18 +134,18 @@ void ControllerSpeak::Init() {
         Serial.println("Radio failed to initialize!");
         return;
     }
+    radio.powerDown();
+    delay(10);
+    radio.powerUp();
     radio.setChannel(1);
     radio.setDataRate(RF24_250KBPS);
     radio.setPALevel(RF24_PA_HIGH);
-    switch (transmission.id) {
-        case 1: radio.openWritingPipe(0xF0F0F0F0C1LL); break;
-        case 2: radio.openWritingPipe(0xF0F0F0F0C2LL); break;
-        case 3: radio.openWritingPipe(0xF0F0F0F0C3LL); break;
-        case 4: radio.openWritingPipe(0xF0F0F0F0C4LL); break;
-        default: radio.openWritingPipe(0xF0F0F0F0EELL); break;
-    }
+    // Always use the same pipe regardless of ID
+    radio.openWritingPipe(0xF0F0F0F0C1LL);
     radio.openReadingPipe(1, 0xF0F0F0F0BBLL);
+    radio.flush_rx(); // Flush RX buffer at init
     radio.startListening();
+    radio.flush_rx(); // Flush again after listening
 }
 
 void ControllerSpeak::SendButtonPress(int buttonID) {
@@ -154,13 +160,19 @@ void ControllerSpeak::SendButtonPress(int buttonID) {
 bool ControllerSpeak::ReceiveMessage(RxMessage &msg) {
     if (radio.available()) {
         radio.read(&msg, sizeof(msg));
-        return true;
+        radio.flush_rx();
+        if (msg.id >= 1 && msg.id <= 4) {
+            return true;
+        }
+    }
+    if (radio.available()) {
+        Serial.println("Warning: RX FIFO still not empty after read+flush!");
     }
     return false;
 }
 
 // Global variables
-uint8_t isBase = 1;
+uint8_t isBase = 0; // 0 for Controller, 1 for Base
 BaseSpeak Station;
 ControllerSpeak Controller;
 
