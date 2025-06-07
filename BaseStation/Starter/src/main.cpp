@@ -1,43 +1,355 @@
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
+#include <CommLib.h>
+
+//constants
+#define RING_LED_PIN  3
+#define SHAPE_LED_PIN  15
+#define RING_LED_COUNT 60
+#define SHAPE_LED_COUNT 30
+#define MAX_PLAYERS 4
 
 
+//Essential objects
+Adafruit_NeoPixel RING_LEDS(RING_LED_COUNT, RING_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel SHAPE_LEDS(SHAPE_LED_COUNT, SHAPE_LED_PIN, NEO_GRB + NEO_KHZ800);
+BaseSpeak COMS_CONTROLLER; 
 
-#define LED_PIN  3
-
-#define LED_COUNT 60
-
-Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
-
-
-void handleConnectionLights(uint8_t wait);
 
 //state machine variables ****************************************************************************
-int state = 0;
+int STATE = 0;
 
-//Player variables ***********************************************************************************
+enum Colors {
+  WHITE = 0xFFFFFF,
+  OFF = 0,
+  RED = 0xFF0000,
+  GREEN = 0xFF00,
+  BLUE = 0x1664b1,
+  PINK = 0xFF1111,
+  ORANGE = 0xff4400,
+  YELLOW = 0xFFFF00
+};
+
+typedef struct LEDranges {
+  int min;
+  int max;
+} LEDranges;
+
+typedef struct RoundLedInfo {
+  int locationID;
+  ButtonType button;
+  int colorID;
+  uint32_t color;
+  bool enabled; 
+} RoundLedInfo;
+
+class Player
+{
+public:
+  int playerId; 
+  uint32_t playerColor;
+  int playerColorID;
+  int playerScore; 
+  bool isConnected = false; 
+
+  Player(){}
+  Player(int id, uint32_t color){
+    this->playerId = id; 
+    this->playerColor = color;
+    this->playerScore = 0; 
+  }
+  void incScore(){
+    this->playerScore = this->playerColor + 1;
+  }
+  uint32_t getColor() {
+    return this->playerColor;
+  }
+  void connectPlayerFromMessage(Message r){
+    playerId = r.id;
+    playerColor = r.data[0];
+    playerScore = 0; 
+  }
+};
+
+class LED {
+  public:
+    int borderLEDs[4] = {0, 15, 30, 45};
+    LEDranges ringQuarterRanges[4] = { {1, 14}, {16, 29}, {31, 44}, {46, 60}};
+    LEDranges shapeRanges[4] = {{0, 6}, {7, 13}, {14, 20}, {21, 27}};
+    uint32_t LEDcolors[4] = {PINK, YELLOW, ORANGE, BLUE};
+
+  public: 
+    LED (){
+      // turnOnBorders();
+    }
+
+    int getColorID(uint32_t color){
+      for(int i = 0; i < 4; i++){
+        if(color == LEDcolors[i]){
+          return i;
+        }
+      }
+      return -1; 
+    }
+    void turnOnBorders(uint32_t color = 0xFFFFFF){
+      for(int ledId: borderLEDs){
+        RING_LEDS.setPixelColor(ledId, color);
+      }
+      RING_LEDS.show();
+    }
+
+  void turnOnShape(int shapeID, uint32_t color){
+    LEDranges shapeRange = shapeRanges[shapeID]; 
+    for (int i = shapeRange.min; i <= shapeRange.max; i++)
+    {
+      SHAPE_LEDS.setPixelColor(i, color);
+    }
+    SHAPE_LEDS.show();
+  }
+
+   void turnOnShape(int shapeID, int colorID){
+      this->turnOnShape(shapeID, LEDcolors[colorID]);
+    }
+
+  void turnOffShape(int shapeID){
+    LEDranges shapeRange = shapeRanges[shapeID]; 
+    for (int i = shapeRange.min; i <= shapeRange.max; i++)
+    {
+      SHAPE_LEDS.setPixelColor(i, 0x0);
+    }
+    SHAPE_LEDS.show();
+  }
+   void turnOnQuarter(int quarterID, uint32_t color){
+    LEDranges quarterRange = ringQuarterRanges[quarterID]; 
+    for (int i = quarterRange.min; i <= quarterRange.max; i++)
+    {
+      RING_LEDS.setPixelColor(i, color);
+    }
+    RING_LEDS.show();
+    // turnOnBorders();
+   }
+   void turnOnQuarter(int quarterID, int colorID){
+    this->turnOnQuarter(quarterID, LEDcolors[colorID]);
+   }
+
+   void turnOffQuarter(int quarterID){
+    LEDranges quarterRange = ringQuarterRanges[quarterID];
+    for (int i = quarterRange.min; i <= quarterRange.max; i++)
+    {
+      RING_LEDS.setPixelColor(i, 0x0);
+    }
+    RING_LEDS.show();
+   }
+   
+   void startBlink() {
+    uint32_t color = 0x00FF00;
+    static uint16_t current_pixel = 0;
+
+    bool found = false; 
+    RING_LEDS.clear();
+
+    for(int i = 0; i < RING_LED_COUNT; i ++){
+      for(int x = 0; x < 4; x++){
+        if(i >= ringQuarterRanges[x].min && i <= ringQuarterRanges[x].max){
+          RING_LEDS.setPixelColor(i, LEDcolors[x]);
+          found = true;
+          break;
+        }
+        if(!found){
+          RING_LEDS.setPixelColor(i, 0xFFFFFF);
+        }
+        found = false; 
+      }
+      // ring.setPixelColor(i, color);
+      RING_LEDS.show();
+      delay(100);
+    }
+
+    for(int i = 0; i < 3; i++){
+      RING_LEDS.clear();
+      RING_LEDS.show();
+      delay(200);
+
+      for(int c=current_pixel; c < RING_LED_COUNT; c ++) {
+        RING_LEDS.setPixelColor(c, color);
+      }
+      RING_LEDS.show();
+      delay(200);
+    }
+
+
+    RING_LEDS.clear();
+    RING_LEDS.show();
+
+  }
+  
+  
+};
+
+class GameRound {
+  public:
+    unsigned long duration; 
+
+    unsigned long startTime; 
+
+    RoundLedInfo leds[4];
+
+    int numOnChanceProportions[4] = {3, 3, 3, 1};
+
+    GameRound () {
+      leds[0].button = SQUARE;
+      leds[0].locationID = 0;
+      leds[1].button = STAR;
+      leds[1].locationID = 1;
+      leds[2].button = HEXAGON;
+      leds[2].locationID = 2;
+      leds[3].button = TRIANGLE;
+      leds[3].locationID = 3;
+    }
+
+    void setUpNewRound() {
+      selectIDs();
+      startTime = millis();
+      duration = 2000;
+    }
+    RoundLedInfo* getRoundLedInfoByColor(uint32_t color){
+      for(int i = 0; i < 4; i ++){
+        if (leds[i].color == color){
+          return &leds[i];
+        }
+      }
+      return NULL;
+    }
+    RoundLedInfo* getRoundLedInfoByShape(ButtonType shape){
+      for(int i = 0; i < 4; i ++){
+        if (leds[i].button == shape){
+          return &leds[i];
+        }
+      }
+      return NULL;
+    }
+    // int selectNumLedsOn(){
+    //   srand(millis());
+    //   int chanceMax = chanceSum(3);
+    //   int chance = random(1, chanceMax);
+    //   int numOn; 
+    //   if(chance > chanceSum(2)){
+    //     numOn = 1;
+    //   } else if (chance > chanceSum(1)){
+    //     numOn = 2;
+    //   } else if (chance > numOnChanceProportions[0]){
+    //     numOn = 3;
+    //   } else {
+    //     numOn = 4; 
+    //   }
+
+    //   return numOn;
+    // }
+    // int chanceSum(int upToID){
+    //   int sum = 0;
+    //   for(int x = 0; x <= upToID; x++){
+    //     sum = sum + x; 
+    //   }
+    //   return sum;
+    // }
+    void resetLedInfo(int startIndex = 0){
+      for( int x = startIndex; x < 4; x++ ){
+        leds[x].color = 0x0; 
+        leds[x].colorID = -1; 
+        leds[x].enabled = false; 
+      }
+    }
+    void selectIDs(){
+      srand(millis());
+      uint32_t availableIDs[4] = {PINK,BLUE,ORANGE,YELLOW};
+      int numAvailable = 4; 
+
+      for(int i = 0; i < 3; i++){
+        int selectedIndex = random(0, numAvailable - 1);
+        
+        leds[i].color = availableIDs[selectedIndex]; 
+        leds[i].enabled = true; 
+
+        int lastIndex = numAvailable - 1;
+        if(selectedIndex != numAvailable - 1){
+          int temp = availableIDs[lastIndex];
+          availableIDs[lastIndex] = availableIDs[selectedIndex];
+          availableIDs[selectedIndex] = temp;
+        }
+      numAvailable--;
+    }
+    leds[3].color = availableIDs[0];
+    leds[3].enabled = true; 
+  }
+  RoundLedInfo* getRoundLedInfo(int index){
+    return &leds[index];
+  }
+      
+  void updateRoundTimer(){
+    RING_LEDS.clear();
+    int startID = 0;
+    int currentID = 1;
+    int maxID = 60;
+    unsigned long startTime = millis();
+    while(startID < maxID){
+
+      if(currentID >= maxID){
+        RING_LEDS.clear();
+          startID++;
+          currentID = startID + 1;
+          startTime = millis();
+          for(uint16_t i = 0; i < startID; i++){
+            RING_LEDS.setPixelColor(i, 0xFFFFFF);
+          }
+          // ring.show();
+        }
+
+        if(millis() >= startTime + (10 * (currentID - startID))){
+          RING_LEDS.clear();
+
+          for(uint16_t i = 0; i < currentID; i++){
+            if(i < startID){
+              RING_LEDS.setPixelColor(i, 0x0000FF);
+            } else {
+              RING_LEDS.setPixelColor(i, 0xFFFFFF);
+            }
+          }
+          currentID++;
+        }
+
+        RING_LEDS.show();
+
+    }
+
+}
+};
+
+//prototype variables ***********************************************************************************
 bool connected[4] = {false, false, false, false};
-int buttonPorts[4] = {26, 22, 20, 18};
-int startButtonPort = 16;
-
-uint16_t LEDrangeMin[4] = {1, 16, 31, 46};
-uint16_t LEDrangeMax[4] = {14, 29, 44, 60}; 
-uint32_t LEDcolors[4] = {0xFFFFFF, 0xFF0000, 0x00FF00, 0x0000FF};
-
-long buttonPressDuration[4] = { -1, -1, -1, -1};
-bool roundInProgress = false; 
-int roundColorIDs[4] = {-1, -1, -1, -1};
-int roundLocationIDs[4] = {-1, -1, -1, -1};
-int roundNum = 0; 
-long roundStartTime; 
-int tempLEDID = 0; 
-
-#define LEDring mainRing ;
+int buttonPorts[4] = {11, 12, 13, 14};
+int startButtonPort = 10;
+long buttonPressDuration[4] = { -1, -1, -1, -1}; 
 
 
 bool isButtonPressed(int buttonID);
-void startBlink();
-void selectIDs(int selectedIDs[], int numToSelect);
+Player* findPlayerIndexById(int playerId);
+Player* findPlayerIndexByColor(uint32_t color);
+void sendToSingleController(int playerIndex, BaseCommandType command, int data1 = 0, int data2 = 0, int data3 = 0);
+void sendToAllConnected(BaseCommandType command, int data1 = 0, int data2 = 0, int data3 = 0);
+//*****************************************************************************************************
+
+int roundNum = 0; 
+
+LED LedController;
+GameRound currentRound; 
+
+Player player1(1, PINK);
+Player player2(2, YELLOW);
+Player player3(3, ORANGE);
+Player player4(4, BLUE);
+
+Player playersList[4] = {player1, player2, player3, player4};
+int numPlayers = 0; 
 
 void setup() {
   // put your setup code here, to run once:
@@ -46,249 +358,135 @@ void setup() {
   pinMode(buttonPorts[2], INPUT); // Sets the pin as an output
   pinMode(buttonPorts[3], INPUT); // Sets the pin as an output
   pinMode(startButtonPort, INPUT);
-  digitalWrite(25, HIGH);
-  strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
-  strip.show();            // Turn OFF all pixels ASAP
-  strip.setBrightness(50); // Set BRIGHTNESS to about 1/5 (max = 255)
 
-  // mainRing = new LEDring();
+  
+  digitalWrite(25, HIGH);  
+  delay(200); 
+  digitalWrite(25, LOW);   
+
+
+  RING_LEDS.begin();           // INITIALIZE NeoPixel ring object (REQUIRED)
+  RING_LEDS.clear();
+  RING_LEDS.show();            // Turn OFF all pixels ASAP
+  RING_LEDS.setBrightness(100); // Set BRIGHTNESS to about 1/5 (max = 255)
+
+  SHAPE_LEDS.begin();           // INITIALIZE NeoPixel ring object (REQUIRED)
+  SHAPE_LEDS.clear();
+  SHAPE_LEDS.show();            // Turn OFF all pixels ASAP
+  SHAPE_LEDS.setBrightness(100); // Set BRIGHTNESS to about 1/5 (max = 255)
+  COMS_CONTROLLER.Init();
+  COMS_CONTROLLER.StartListening();
+  digitalWrite(25, HIGH);   
 }
 
 void loop() {
-
-  switch (state)
+  switch (STATE)
   {
-  case (0):
+    //CONECTION STATE
+   case (0):
+      LedController.turnOnBorders();
+
+      // PROTOTYPE TEST CODE
       for(int i = 0; i < 4; i++){
         if(isButtonPressed(buttonPorts[i])){
           connected[i] = !connected[i];
-          // if(connected[i]){
-          //   mainRing.turnOnQuarter(i);
-          // } else {
-          //   mainRing.turnOffQuarter(i);
-          // }
+          if(connected[i]){
+            playersList[i].isConnected = true;
+            LedController.turnOnQuarter(i, i);
+          } else {
+            LedController.turnOffQuarter(i);
+          }
         }
       }
 
-      if(isButtonPressed(startButtonPort)){
-        state = 1;
+      //IMPLEMENTATION
+      if(COMS_CONTROLLER.Available()){
+        if (COMS_CONTROLLER.ReceiveMessage(COMS_CONTROLLER.reception)) {
+          if(COMS_CONTROLLER.reception.command == BUTTON_PRESS || COMS_CONTROLLER.reception.id > 0){
+            int playerId = COMS_CONTROLLER.reception.id;
+            Player* player = findPlayerIndexById(playerId);
+            player->isConnected = true; 
+            // RING_LEDS.setPixelColor(playerId, WHITE);
+            LedController.turnOnQuarter(playerId - 1, player->playerColor);
+          }
+        }
       }
-      handleConnectionLights(10);
+      if(isButtonPressed(startButtonPort)){
+        STATE = 1;
+      }
+      // handleConnectionLights(10);
       delay(50);
     break;
+  //START GAME STATE
   case (1): 
-    startBlink();
-
-  //**************************************************LED Ring Round Timer thingy************************************* */
-    // strip.clear();
-    // int startID = 0;
-    // int currentID = 1;
-    // int maxID = LED_COUNT;
-    // unsigned long startTime = millis();
-    // while(startID < maxID){
-
-    //   if(currentID >= maxID){
-    //     strip.clear();
-    //       startID++;
-    //       currentID = startID + 1;
-    //       startTime = millis();
-    //       for(uint16_t i = 0; i < startID; i++){
-    //         strip.setPixelColor(i, 0xFFFFFF);
-    //       }
-    //       // strip.show();
-    //     }
-
-    //     if(millis() >= startTime + (10 * (currentID - startID))){
-    //       strip.clear();
-
-    //       for(uint16_t i = 0; i < currentID; i++){
-    //         if(i < startID){
-    //           strip.setPixelColor(i, 0x0000FF);
-    //         } else {
-    //           strip.setPixelColor(i, 0xFFFFFF);
-    //         }
-    //       }
-    //       currentID++;
-    //     }
-
-    //     strip.show();
-
-    // }
-//******************************************************************************************************************* */
-    // delay(5000);
-    state = 2;
+    sendToAllConnected(GAME_START);
+    LedController.startBlink();
+    STATE = 2;
     break; 
+  //PREPARE ROUND STATE
   case (2): 
-  if(!roundInProgress){
-      int vals[4] = {0, 25, 50, 75};
-      int chance = random(1,100);
-      int numOn; 
-      if(chance > 90){
-        numOn = 1;
-      } else if (chance > 60){
-        numOn = 2;
-      } else if (chance > 30){
-        numOn = 3;
-      } else {
-        numOn = 4; 
-      }
-  
-      selectIDs(roundColorIDs, numOn);
-      selectIDs(roundLocationIDs, numOn);
-
-      strip.clear();
-    for(int i = 0; i < numOn;i++){
-      int locID = roundLocationIDs[i];
-      int colID = roundColorIDs[i];
-      for(int x = LEDrangeMin[locID]; x <= LEDrangeMax[locID]; x++){
-        strip.setPixelColor(x, LEDcolors[colID]);
-      }
-    }
-    strip.show();
-    roundInProgress = true;
-    roundStartTime = millis();
-    // delay(200);
-  
-    }
+    currentRound.setUpNewRound();
+    sendToAllConnected(ROUND_START);
+    STATE = 3; 
+    break;
+  //ONGOING ROUND STATE
+  case (3): 
+    RoundLedInfo* currentLed; 
+    //HANDLE SHAPE LEDs
     for(int i = 0; i < 4; i++){
-      if(isButtonPressed(buttonPorts[i])){
-        
+      currentLed = currentRound.getRoundLedInfo(i);
+      if(currentLed->enabled){
+        int locID = currentLed->locationID;
+        uint32_t colID = currentLed->color;
+        LedController.turnOnShape(locID, colID);
+      } else {
+        LedController.turnOffShape(i);
+      }  
+    }
+    //TEST CODE
+    for(int i = 0; i < 4; i++){
+      currentLed = currentRound.getRoundLedInfo(i);
+      bool isPlayerConnected = playersList[i].isConnected, 
+            sameColorAndShape = playersList[i].getColor() == currentLed->color;
+      if(isButtonPressed(buttonPorts[i]) && currentLed->enabled && sameColorAndShape && isPlayerConnected){
+        currentLed->enabled = false; 
+        playersList[i].incScore();
       }
     }
-    if(millis() - roundStartTime >= 2000){
-      roundInProgress = false; 
+
+    //IMPLEMENTATION
+      if (COMS_CONTROLLER.ReceiveMessage(COMS_CONTROLLER.reception)) {
+        if(COMS_CONTROLLER.reception.command == BUTTON_PRESS){
+          int playerId = COMS_CONTROLLER.reception.id;
+          Player* player = findPlayerIndexById(playerId);
+          if(player != NULL){
+            currentLed = currentRound.getRoundLedInfoByColor(player->getColor());
+            if (COMS_CONTROLLER.reception.button == currentLed->button){
+              currentLed->enabled = false; 
+              player->incScore();
+              sendToSingleController(player->playerId, SCORE_UPDATE, player->playerScore);
+            }
+          }
+        }
+      }
+    if(millis() - currentRound.startTime >= currentRound.duration){
+      STATE = 4; 
     }
       
 //how many -> which colors -> which buttons [0,1,2,3]
 
     break; 
-  }
-  // digitalWrite(25, 0);
-  // unsigned long currentMillis = millis();                     //  Update current time
 
-}
-
-// // put function definitions here:
-// int myFunction(int x, int y) {
-//   return x + y;
-// }
-void selectIDs(int selectedIDs[4], int numToSelect){
-  int availableIDs[4] = {0,1,2,3};
-  int numAvailable = 4; 
-
-  for(int i = 0; i < numToSelect; i++){
-    int selected = random(0, numAvailable-1);
-    selectedIDs[i] = availableIDs[selected]; 
-
-    int lastIndex = numAvailable - 1;
-    if(selected != numAvailable - 1){
-      int temp = availableIDs[lastIndex];
-      availableIDs[lastIndex] = availableIDs[selected];
-      availableIDs[selected] = temp;
-    }
-    numAvailable--;
-  }
-
-  while(numAvailable-- > 0){
-    selectedIDs[numToSelect + numAvailable] = -1;
-  }
-}
-void handleConnectionLights(uint8_t wait) {
-
-  for(int x = 0; x < 4; x++){
-    if (connected[x])
-    {
-      for(uint16_t i=LEDrangeMin[x]; i <= LEDrangeMax[x]; i++){
-        strip.setPixelColor(i, LEDcolors[x]);
-      }
-    } else if (!connected[x]){
-      for(uint16_t i=LEDrangeMin[x]; i <= LEDrangeMax[x]; i++){
-        strip.setPixelColor(i, 0x0);
-      }
-    }
-    
-  }
-
-  for(uint16_t i=0; i < 60; i++){
-    if(i % 15 == 0){
-      strip.setPixelColor(i, 0xFFFFFF);
-    }
-  }
-  
-  strip.show();                             //  Update strip to match
-  digitalWrite(25, HIGH);
-}
-
-void startBlink() {
-  int wait = 10;
-  uint32_t color = 0x00FF00;
-  static uint32_t loop_count = 0;
-  static uint16_t current_pixel = 0;
-
-  bool found = false; 
-  strip.clear();
-
-  for(int i = 0; i < LED_COUNT; i ++){
-    for(int x = 0; x < 4; x++){
-      if(i >= LEDrangeMin[x] && i <= LEDrangeMax[x]){
-        strip.setPixelColor(i, LEDcolors[x]);
-        found = true;
-        break;
-      }
-      if(!found){
-        strip.setPixelColor(i, 0xFFFFFF);
-      }
-      found = false; 
-    }
-    // strip.setPixelColor(i, color);
-    strip.show();
+  case (4): 
+    currentRound.resetLedInfo();
+    RING_LEDS.clear();
+    SHAPE_LEDS.clear();
+    SHAPE_LEDS.show();
+    STATE = 2; 
     delay(100);
+    break; 
   }
-
-  for(int i = 0; i < 3; i++){
-    strip.clear();
-    strip.show();
-    delay(200);
-
-    for(int c=current_pixel; c < LED_COUNT; c ++) {
-      strip.setPixelColor(c, color);
-    }
-    strip.show();
-    delay(200);
-  }
-
-
-  strip.clear();
-  strip.show();
-
 }
-  
-//   for(int i = 0; i < 4; i++){
-//     for(int x = LEDrangeMax[i]; x <= LEDrangeMin[i]; x ++){
-//       strip.setPixelColor(i, LEDcolors[i]);
-//       strip.show();
-//       delay(50);
-//     }
-//   }
-
-//   for(int k = 0; k < 3; k++){
-//     for(int x = 0; x < LED_COUNT; x ++){
-//       strip.setPixelColor(x, 0x0);
-//     }
-//     strip.show();
-//     delay(250);
-//     for(int i = 0; i < 4; i++){
-//       for(int x = LEDrangeMax[i]; x <= LEDrangeMin[i]; x ++){
-//         strip.setPixelColor(i, LEDcolors[i]);
-//       }
-//     }
-//     strip.show();
-//     delay(250);
-//   }
-
-// }
-
-
 
 bool isButtonPressed(int buttonID){
   bool buttonPressed = (digitalRead(buttonID) == HIGH),
@@ -304,41 +502,42 @@ bool isButtonPressed(int buttonID){
   return false; 
 }
 
+Player* findPlayerIndexByColor(uint32_t color){
+  for(int i = 0; i < 4; i++){
+    if (playersList[i].getColor() == color)
+    {
+      return &playersList[i]; 
+    } 
+  }
+  return NULL; 
+}
+Player* findPlayerIndexById(int playerId){
+  for(int i = 0; i < 4; i++){
+    if (playersList[i].playerId == playerId)
+    {
+      return &playersList[i]; 
+    } 
+  }
+  return NULL; 
+}
+void sendToSingleController(int playerIndex, BaseCommandType command, int data1, int data2, int data3){
+  COMS_CONTROLLER.transmission.command = command;
+  COMS_CONTROLLER.transmission.id = playersList[playerIndex].playerId;
+  COMS_CONTROLLER.transmission.data[0] = data1;
+  COMS_CONTROLLER.transmission.data[1] = data2;
+  COMS_CONTROLLER.transmission.data[2] = data3;
+  COMS_CONTROLLER.SendMessage(COMS_CONTROLLER.transmission);
+}
 
- typedef struct LEDranges {
-    int min;
-    int max;
-  } LEDranges;
-
-
-// class LEDring {
-//   private:
-//     const int PIN = 3;
-//     const int NUM_LEDs = 60; 
-//     int borderLEDs[4] = {0, 15, 30, 45};
-//     LEDranges quarterRanges[4] = { {1, 14}, {16, 29}, {31, 44}, {46, 60}};
-
-//   public: 
-//     LEDring (){
-
-//     }
-
-//    void turnOnQuarter(int quarterID, uint32_t color){
-//     LEDranges quarterRange = quarterRanges[quarterID];
-//     for (int i = quarterRange.min; i < quarterRange.max; i++)
-//     {
-//       strip.setPixelColor(i, color);
-//     }
-//     strip.show();
-//    }
-
-//    void turnOffQuarter(int quarterID){
-//     LEDranges quarterRange = quarterRanges[quarterID];
-//     for (int i = quarterRange.min; i < quarterRange.max; i++)
-//     {
-//       strip.setPixelColor(i, 0x0);
-//     }
-//     strip.show();
-//    }
-   
-// };
+void sendToAllConnected(BaseCommandType command, int data1, int data2, int data3){
+  for(int i = 0; i < 4; i++){
+    if(playersList[i].isConnected){
+      COMS_CONTROLLER.transmission.command = command;
+      COMS_CONTROLLER.transmission.id = playersList[i].playerId;
+      COMS_CONTROLLER.transmission.data[0] = data1;
+      COMS_CONTROLLER.transmission.data[1] = data2;
+      COMS_CONTROLLER.transmission.data[2] = data3;
+      COMS_CONTROLLER.SendMessage(COMS_CONTROLLER.transmission);
+    }
+  }
+}
