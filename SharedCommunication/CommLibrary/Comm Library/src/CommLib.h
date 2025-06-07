@@ -28,7 +28,7 @@ enum ControllerCommandType {
 enum ButtonType {
   SQUARE,
   STAR,
-  HECAGON,
+  HEXAGON,
   TRIANGLE
 };
 
