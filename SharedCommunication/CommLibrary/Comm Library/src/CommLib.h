@@ -101,7 +101,7 @@ public:
   RxMessage reception;
 
   void Init();
-  void SendButtonPress(int buttonID);
+  void SendButtonPress(ButtonType button);
   bool ReceiveMessage(RxMessage &msg);
 };
 

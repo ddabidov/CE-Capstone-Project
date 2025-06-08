@@ -83,20 +83,20 @@ void DeviceSpeak::Write(const void *buf, size_t len) {
 // BaseSpeak method implementations
 void BaseSpeak::Init() {
     while (!Serial) {
-    // some boards need to wait to ensure access to serial over USB
+        // some boards need to wait to ensure access to serial over USB
    }
-    radio.powerDown();
-    delay(10);
-    radio.powerUp();
-    // Flush FIFOs and clear interrupts
-    radio.flush_rx();
-    radio.flush_tx();    
-    radio.printPrettyDetails();
-    radio.printStatus(radio.getStatusFlags());
-    printRadioStatus("Before begin");
-    if (!radio.begin()) {
-        Serial.println("Radio failed to initialize!");
-        return;
+    while (true) {
+        radio.powerDown();
+        delay(10);
+        radio.powerUp();
+        radio.flush_rx();
+        radio.flush_tx();
+        printRadioStatus("Before begin");
+        if (radio.begin()) {
+            break;
+        }
+        Serial.println("ERROR: radio.begin() failed! Retrying in 1s. Check wiring and power.");
+        delay(1000);
     }
     printRadioStatus("After begin");
     radio.setChannel(1);
@@ -150,17 +150,18 @@ bool BaseSpeak::PollController(RxMessage &msg) {
 
 // ControllerSpeak method implementations
 void ControllerSpeak::Init() {
-    radio.powerDown();
-    delay(10);
-    radio.powerUp();
-    radio.flush_rx();
-    radio.flush_tx();
-    radio.printPrettyDetails();
-    radio.printStatus(radio.getStatusFlags());
-    printRadioStatus("Before begin");
-    if (!radio.begin()) {
-        Serial.println("Radio failed to initialize!");
-        return;
+    while (true) {
+        radio.powerDown();
+        delay(10);
+        radio.powerUp();
+        radio.flush_rx();
+        radio.flush_tx();
+        printRadioStatus("Before begin");
+        if (radio.begin()) {
+            break;
+        }
+        Serial.println("ERROR: radio.begin() failed! Retrying in 1s. Check wiring and power.");
+        delay(1000);
     }
     printRadioStatus("After begin");
     radio.setChannel(1);
@@ -180,10 +181,9 @@ void ControllerSpeak::Init() {
     printRadioStatus("After startListening");
 }
 
-void ControllerSpeak::SendButtonPress(int buttonID) {
-    transmission.id = buttonID;
+void ControllerSpeak::SendButtonPress(ButtonType button) {
     transmission.command = BUTTON_PRESS;
-    transmission.button = static_cast<ButtonType>(buttonID);
+    transmission.button = button;
     radio.stopListening();
     radio.write(&transmission, sizeof(transmission));
     radio.startListening();
