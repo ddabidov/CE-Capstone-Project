@@ -80,6 +80,23 @@ void DeviceSpeak::Write(const void *buf, size_t len) {
     radio.write(buf, len);
 }
 
+bool DeviceSpeak::ReceiveForDuration(unsigned long duration_ms) {
+    unsigned long start = millis();
+    Message msg;
+    while (!radio.available()) {
+        if (millis() - start >= duration_ms) {
+            // Timeout elapsed, no message received
+            return false;
+        }
+        delay(1); // Small delay to avoid hogging CPU
+    }
+    // Message became available before timeout
+    radio.read(&msg, sizeof(msg));
+    Serial.print("Received message in timed loop. ID: ");
+    Serial.println(msg.id);
+    return true;
+}
+
 // BaseSpeak method implementations
 void BaseSpeak::Init() {
     while (!Serial) {
@@ -105,7 +122,7 @@ void BaseSpeak::Init() {
     radio.setCRCLength(RF24_CRC_16);
     radio.setAddressWidth(5);
     radio.disableDynamicPayloads(); // Use static payloads for debugging
-    radio.setPayloadSize(sizeof(RxMessage));
+    radio.setPayloadSize(5); // Always use 5 bytes for all pipes
     radio.openReadingPipe(1, 0xF0F0F0F0C1LL);
     radio.openWritingPipe(0xF0F0F0F0BBLL);
     radio.flush_rx();
@@ -170,7 +187,7 @@ void ControllerSpeak::Init() {
     radio.setCRCLength(RF24_CRC_16);
     radio.setAddressWidth(5);
     radio.disableDynamicPayloads();
-    radio.setPayloadSize(sizeof(RxMessage));
+    radio.setPayloadSize(5); // Always use 5 bytes for all pipes
     radio.openWritingPipe(0xF0F0F0F0C1LL);
     radio.openReadingPipe(1, 0xF0F0F0F0BBLL);
     radio.flush_rx();
@@ -230,7 +247,7 @@ void CommLoop() {
     // Flush RX FIFO before checking for available messages
     radio.flush_rx();
     switch (isBase) {
-        case 0:
+        case 0: // Controller mode
             if (Controller.Available()) {
                 if (Controller.ReceiveMessage(Controller.reception)) {
                     Serial.print("Received message ID: ");
@@ -243,8 +260,8 @@ void CommLoop() {
                 Serial.println("No message available.");
             }
             break;
-        case 1:
-            Station.SendMessage(Station.transmission);
+        case 1: // Base mode
+            Station.SendMessage(Station.transmission); // This already stops/starts listening
             Serial.println("Message sent!");
             digitalWrite(25, HIGH);
             delay(100);

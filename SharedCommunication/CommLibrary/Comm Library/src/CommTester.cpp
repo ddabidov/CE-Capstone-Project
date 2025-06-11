@@ -56,7 +56,7 @@ public:
             Controller.transmission.id = ctrl_id;
             Controller.transmission.command = BUTTON_PRESS;
             Controller.transmission.button = STAR;
-            Controller.SendButtonPress(Controller.transmission.id);
+            Controller.SendButtonPress(Controller.transmission.button);
             Serial.println("Controller: Sent button press.");
 
             // Test ControllerSpeak receive (simulate base message)
