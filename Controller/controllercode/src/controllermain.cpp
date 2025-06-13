@@ -16,7 +16,7 @@ const int hexpin = 8;  // the number of the pushbutton pin
 const int squarepin = 13;  // the number of the pushbutton pin
 const int mosfetPin = 26;
 extern ControllerSpeak Controller;
-UART Serial1(21, 22); // RX, TX pins for UART communication
+//UART Serial1(21, 22); // RX, TX pins for UART communication
 
 #define NUMPIXELS 35 //NeoPixel ring size
 int starbutton = digitalRead(starpin);
@@ -41,9 +41,11 @@ void theaterChase(uint32_t c, uint8_t wait); // Function prototype for theaterCh
 void buttons(); // Function prototype for buttons
 void score(uint8_t j); // Function prototype for score
 
+
 #define UART_BUFFER_SIZE 16
 char uartBuffer[UART_BUFFER_SIZE];
 uint8_t uartIndex = 0;
+void parseUartMessage(const char* uartBuffer);
 
 void setup() {
   // These lines are specifically to support the Adafruit Trinket 5V 16 MHz.

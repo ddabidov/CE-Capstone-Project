@@ -56,7 +56,7 @@ public:
   bool Available();
   void Read(void *buf, size_t len);
   void Write(const void *buf, size_t len);
-  bool ReceiveForDuration(unsigned long duration_ms)
+  bool ReceiveForDuration(unsigned long duration_ms);
 };
 
 // BaseSpeak class
