@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <string.h>
 #include <Adafruit_NeoPixel.h>
 #include <CommLib.h>
 
@@ -9,6 +10,11 @@
 #define SHAPE_LED_COUNT 30
 #define MAX_PLAYERS 4
 
+// #define Serial _UART2_;
+//button ports 11 12 13
+
+UART SerialA(4, 5);
+UART SerialB(8,9);
 
 //Essential objects
 Adafruit_NeoPixel RING_LEDS(RING_LED_COUNT, RING_LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -336,6 +342,7 @@ Player* findPlayerIndexById(int playerId);
 Player* findPlayerIndexByColor(uint32_t color);
 void sendToSingleController(int playerIndex, BaseCommandType command, int data1 = 0, int data2 = 0, int data3 = 0);
 void sendToAllConnected(BaseCommandType command, int data1 = 0, int data2 = 0, int data3 = 0);
+int readUart(int controllerId);
 //*****************************************************************************************************
 
 int roundNum = 0; 
@@ -351,6 +358,20 @@ Player player4(4, BLUE);
 Player playersList[4] = {player1, player2, player3, player4};
 int numPlayers = 0; 
 
+
+  struct TxMessage {
+    uint8_t id;
+    int command;
+    uint8_t data[3];
+  };
+
+  struct RxMessage {
+    uint8_t id;
+    ControllerCommandType command;
+    ButtonType button;
+  };
+
+
 void setup() {
   // put your setup code here, to run once:
   pinMode(buttonPorts[0], INPUT); // Sets the pin as an output
@@ -358,6 +379,7 @@ void setup() {
   pinMode(buttonPorts[2], INPUT); // Sets the pin as an output
   pinMode(buttonPorts[3], INPUT); // Sets the pin as an output
   pinMode(startButtonPort, INPUT);
+
 
   
   digitalWrite(25, HIGH);  
@@ -376,7 +398,39 @@ void setup() {
   SHAPE_LEDS.setBrightness(100); // Set BRIGHTNESS to about 1/5 (max = 255)
   COMS_CONTROLLER.Init();
   COMS_CONTROLLER.StartListening();
-  digitalWrite(25, HIGH);   
+  
+  while(!isButtonPressed(startButtonPort)){
+    digitalWrite(25, HIGH);  
+    delay(10);
+  }
+  digitalWrite(25, LOW);  
+
+  
+  SerialA.begin(9600);
+  SerialB.begin(9600);
+  Serial.begin(9600);
+
+
+  TxMessage newMessage = {2, GAME_START, {0,0,0}};
+  // SerialA.write((const char*) newMessage, sizeof(TxMessage));
+  delay(100);
+
+  int k = 0;
+  while(SerialB.available() >= 1){
+    char temp; 
+    temp = SerialB.read();
+    // for(int i = 0; i < temp; i++){
+      Serial.print("receivedd : ");
+      Serial.println(temp);
+      // RING_LEDS.setPixelColor(i, LedController.LEDcolors[k] );
+    // }
+    // RING_LEDS.show();
+    // k = k == 3 ? 3 : k + 1;
+    k++;
+  }
+  delay(10000);
+  digitalWrite(25, HIGH);  
+
 }
 
 void loop() {
@@ -399,18 +453,30 @@ void loop() {
         }
       }
 
-      //IMPLEMENTATION
-      if(COMS_CONTROLLER.Available()){
-        if (COMS_CONTROLLER.ReceiveMessage(COMS_CONTROLLER.reception)) {
-          if(COMS_CONTROLLER.reception.command == BUTTON_PRESS || COMS_CONTROLLER.reception.id > 0){
-            int playerId = COMS_CONTROLLER.reception.id;
-            Player* player = findPlayerIndexById(playerId);
-            player->isConnected = true; 
-            // RING_LEDS.setPixelColor(playerId, WHITE);
-            LedController.turnOnQuarter(playerId - 1, player->playerColor);
-          }
+      // //IMPLEMENTATION
+      // if(COMS_CONTROLLER.Available()){
+      //   if (COMS_CONTROLLER.ReceiveMessage(COMS_CONTROLLER.reception)) {
+      //     if(COMS_CONTROLLER.reception.command == BUTTON_PRESS || COMS_CONTROLLER.reception.id > 0){
+      //       int playerId = COMS_CONTROLLER.reception.id;
+      //       Player* player = findPlayerIndexById(playerId);
+      //       player->isConnected = true; 
+      //       // RING_LEDS.setPixelColor(playerId, WHITE);
+      //       LedController.turnOnQuarter(playerId - 1, player->playerColor);
+      //     }
+      //   }
+      // }
+      int receivedId;
+      for(int i = 0; i < MAX_PLAYERS; i++){
+        receivedId = readUart(i); 
+        Player* player = &playersList[i];
+        if(!player->isConnected && receivedId != 1){
+          numPlayers++; 
+          player->isConnected = true; 
+          LedController.turnOnQuarter(i, player->getColor());
+          sendBaseCommand(i, START_CONNECTION);
         }
       }
+
       if(isButtonPressed(startButtonPort)){
         STATE = 1;
       }
@@ -521,23 +587,57 @@ Player* findPlayerIndexById(int playerId){
   return NULL; 
 }
 void sendToSingleController(int playerIndex, BaseCommandType command, int data1, int data2, int data3){
-  COMS_CONTROLLER.transmission.command = command;
-  COMS_CONTROLLER.transmission.id = playersList[playerIndex].playerId;
-  COMS_CONTROLLER.transmission.data[0] = data1;
-  COMS_CONTROLLER.transmission.data[1] = data2;
-  COMS_CONTROLLER.transmission.data[2] = data3;
-  COMS_CONTROLLER.SendMessage(COMS_CONTROLLER.transmission);
+  // COMS_CONTROLLER.transmission.command = command;
+  // COMS_CONTROLLER.transmission.id = playersList[playerIndex].playerId;
+  // COMS_CONTROLLER.transmission.data[0] = data1;
+  // COMS_CONTROLLER.transmission.data[1] = data2;
+  // COMS_CONTROLLER.transmission.data[2] = data3;
+  // COMS_CONTROLLER.SendMessage(COMS_CONTROLLER.transmission);
 }
 
 void sendToAllConnected(BaseCommandType command, int data1, int data2, int data3){
-  for(int i = 0; i < 4; i++){
-    if(playersList[i].isConnected){
-      COMS_CONTROLLER.transmission.command = command;
-      COMS_CONTROLLER.transmission.id = playersList[i].playerId;
-      COMS_CONTROLLER.transmission.data[0] = data1;
-      COMS_CONTROLLER.transmission.data[1] = data2;
-      COMS_CONTROLLER.transmission.data[2] = data3;
-      COMS_CONTROLLER.SendMessage(COMS_CONTROLLER.transmission);
-    }
-  }
+  // for(int i = 0; i < 4; i++){
+  //   if(playersList[i].isConnected){
+  //     COMS_CONTROLLER.transmission.command = command;
+  //     COMS_CONTROLLER.transmission.id = playersList[i].playerId;
+  //     COMS_CONTROLLER.transmission.data[0] = data1;
+  //     COMS_CONTROLLER.transmission.data[1] = data2;
+  //     COMS_CONTROLLER.transmission.data[2] = data3;
+  //     COMS_CONTROLLER.SendMessage(COMS_CONTROLLER.transmission);
+  //   }
+  // }
+}
+
+void sendBaseCommand(int controllerId, BaseCommandType command){
+  UART sender = controllerId == 0 ? SerialA : SerialB;
+  
+  sender.println("C" + (char) command);
+
+}
+
+void sendScoreUpdate(int controllerId, int score){
+  UART sender = controllerId == 0 ? SerialA : SerialB;
+  
+  sender.println("S" + (char) score);
+
+}
+
+int readUart(int controllerId){
+  UART receiver = controllerId == 0 ? SerialA : SerialB;
+  int buttonId = -1; 
+   if (receiver.available() > 0) {
+    
+    char c = receiver.read();
+    if (c == 'B' ) {
+      int temp = receiver.read() - '0';
+      if(temp > 0 && temp < 5){
+        buttonId = temp; 
+      }
+
+      while(receiver.available() > 0){
+        receiver.read();
+      }
+    } 
+  }  
+  return buttonId;
 }
