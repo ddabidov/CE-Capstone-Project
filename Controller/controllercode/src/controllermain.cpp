@@ -40,7 +40,7 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 void buzzer(int i); // Function prototype for buzzer
 void theaterChase(uint32_t c, uint8_t wait); // Function prototype for theaterChase
 void buttons(); // Function prototype for buttons
-void score(uint8_t j); // Function prototype for score
+void score(uint8_t j, int k); // Function prototype for score
 bool isButtonPressed(int buttonID); // Function prototype for isButtonPressed
 
 
@@ -101,10 +101,9 @@ void loop() {
     }
   }
   buttons(); // Check for button presses
-
-  if(((millis())-currenttime) > 1000) { // Check if 1 second has passed
+  if(((millis())-currenttime) > 500) { // Check if .5 second has passed
     buzzer(0); // Increment the buzzer timer
-  }
+      }
 }
 // Parse UART message and act accordingly
 void parseUartMessage(const int msg) {
@@ -116,50 +115,43 @@ void parseUartMessage(const int msg) {
     switch (command) {
     case START_CONNECTION:
       theaterChase(pixels.Color(r, g, b), 50); // Set all pixels to a random color
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
     case ROUND_START:
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
     case ROUND_WON:
-      theaterChase(pixels.Color(0, 150, 0), 50); // Show a green chase effect
+      score(currentscore,1); // Update score based on received data
       buzzer(1); // Activate buzzer
-      score(currentscore); // Update score based on received data
       break;
     case WRONG_BUTTON:
-      pixels.fill(pixels.Color(150, 0, 0)); // Set all pixels to red
-      pixels.show(); // Update the strip to show the color
+      score(currentscore,0); // Update score based on received data
       buzzer(1);
-      score(currentscore); // Update score based on received data
       break;
     case ROUND_LOST:
-      pixels.fill(pixels.Color(150, 0, 0)); // Set all pixels to red
-      pixels.show(); // Update the strip to show the color
+      score(currentscore,0); // Update score based on received data
       buzzer(1);
-      score(currentscore); // Update score based on received data
       break;
     case ROUND_END:
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
     case SCORE_UPDATE:
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
     case GAME_START:
       buttons(); // Check for button presses
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
     case GAME_WON:
       theaterChase(pixels.Color(0, 150, 0), 50); // Show a green chase effect
       buzzer(1); // Activate buzzer
-      score(currentscore); // Update score based on received data
       break;
     case GAME_LOST:
       theaterChase(pixels.Color(150, 0, 0), 50); // Show a red chase effect
       buzzer(1); // Activate buzzer
-      score(currentscore); // Update score based on received data
       break;
     default:
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
   }
 }
@@ -212,7 +204,7 @@ void theaterChase(uint32_t c, uint8_t wait) {
   }
 }
 
-void score(uint8_t j)
+void score(uint8_t j, int k) // Function to update the score on the NeoPixel strip
 {
     if(j == 0) {
     pixels.clear(); // Clear the pixels if no score
@@ -226,6 +218,24 @@ else
     // Here we're using a moderately bright green color:
     pixels.setPixelColor(i, pixels.Color(0, 0, 150));
     pixels.show();
+  }
+  if(k == 1){
+    for(int i=j; i<35; i++) { // For each pixel...
+
+    // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
+    // Here we're using a moderately bright red color:
+    pixels.setPixelColor(i, pixels.Color(0, 150, 0));
+    pixels.show();
+  }
+  }
+  if(k == 0){
+    for(int i=j; i<35; i++) { // For each pixel...
+
+    // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
+    // Here we're using a moderately bright green color:
+    pixels.setPixelColor(i, pixels.Color(150, 0, 0));
+    pixels.show();
+  }
   }
 }
 }
