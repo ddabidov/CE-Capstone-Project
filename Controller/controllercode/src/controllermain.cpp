@@ -4,9 +4,8 @@
 #include <CommLib.h>
 #include <Adafruit_NeoPixel.h>
 #ifdef __AVR__
- #include <avr/power.h> // Required for 16 MHz Adafruit Trinket
+#include <avr/power.h> // Required for 16 MHz Adafruit Trinket
 #endif
-
 
 // Which pin on the Arduino is connected to the NeoPixels?
 #define PIN        11 //led ring pin
@@ -16,7 +15,6 @@ const int hexpin = 8;  // the number of the pushbutton pin
 const int squarepin = 13;  // the number of the pushbutton pin
 const int mosfetPin = 26;
 extern ControllerSpeak Controller;
-//UART Serial1(21, 22); // RX, TX pins for UART communication
 
 #define NUMPIXELS 35 //NeoPixel ring size
 int starbutton = digitalRead(starpin);
@@ -26,7 +24,10 @@ int squarebutton = digitalRead(squarepin);
 int buzzertimer;
 float currenttime;
 uint8_t currentscore = 0; // Declare currentscore as a global variable
+UART SerialA(16, 17); // Create a UART object for SerialA with TX on pin 21 and RX on pin 22
 
+// Array to track button press durations, initialized to -1 (not pressed)
+long buttonPressDuration[4] = { -1, -1, -1, -1}; 
 
 // When setting up the NeoPixel library, we tell it how many pixels,
 // and which pin to use to send signals. Note that for older NeoPixel
@@ -39,13 +40,14 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 void buzzer(int i); // Function prototype for buzzer
 void theaterChase(uint32_t c, uint8_t wait); // Function prototype for theaterChase
 void buttons(); // Function prototype for buttons
-void score(uint8_t j); // Function prototype for score
+void score(uint8_t j, int k); // Function prototype for score
+bool isButtonPressed(int buttonID); // Function prototype for isButtonPressed
 
 
 #define UART_BUFFER_SIZE 16
 char uartBuffer[UART_BUFFER_SIZE];
 uint8_t uartIndex = 0;
-void parseUartMessage(const char* uartBuffer);
+void parseUartMessage(const int msg);
 
 void setup() {
   // These lines are specifically to support the Adafruit Trinket 5V 16 MHz.
@@ -64,121 +66,116 @@ void setup() {
   // Start with the MOSFET off
   digitalWrite(mosfetPin, LOW); // or HIGH for a P-channel MOSFET
   // Set the ID for the controller
-  Controller.transmission.id = 1;
-  Serial1.begin(9600);
+  //Controller.transmission.id = 1;
+  SerialA.begin(9600); // Start serial communication at 9600 baud rate
+  Serial.begin(9600); // Start serial communication at 9600 baud rate
 }
 
 void loop() {
-      
+//theaterChase(pixels.Color(0, 150, 0), 50); // Show a green chase effect
+   if (SerialA.available() > 0) {
+    char c = SerialA.read();
+    // Serial.println("received char " + c); // Read and print the incoming data from SerialA
+    // Serial.println(" : int" + (int) c); // Read and print the incoming data from SerialA
+    Serial.println(c); // Print the received character
+      if (c == 'C' ) {
+        int temp = SerialA.read() - '0';
+        Serial.println(temp); // Print the received value
+        if(temp >= 0 && temp <= 9){
+          parseUartMessage(temp); 
+        }
 
-   while (Serial1.available() > 0) {
-    char c = Serial1.read();
-    if (c == '\n' || c == '\r') {
-      uartBuffer[uartIndex] = '\0'; // Null-terminate
-      parseUartMessage(uartBuffer);
-      uartIndex = 0; // Reset for next message
-    } else if (uartIndex < UART_BUFFER_SIZE - 1) {
-      uartBuffer[uartIndex++] = c;
-    } else {
-      uartIndex = 0; // Buffer overflow, reset
+        while(SerialA.available() > 0){
+          SerialA.read();
+        }
+      }  
+      if (c == 'S' ) {
+      char temp = SerialA.read();
+      Serial.println(temp); // Print the received value
+      currentscore = temp;
+      Serial.println(currentscore); // Print the received value
+      currentscore = int(currentscore);
+      while(SerialA.available() > 0){
+          SerialA.read();
+        }
     }
   }
-    
   buttons(); // Check for button presses
-
-  if(((millis())-currenttime) > 1000) { // Check if 1 second has passed
+  if(((millis())-currenttime) > 500) { // Check if .5 second has passed
     buzzer(0); // Increment the buzzer timer
-  }
+      }
 }
 // Parse UART message and act accordingly
-void parseUartMessage(const char* msg) {
+void parseUartMessage(const int msg) {
   pixels.clear(); // Set all pixel colors to 'off'
   int r = random(150, 255);
   int b = 0;
   int g = random(100);
-  if (strncmp(msg, "C", 1) == 0 && strlen(msg) == 2) {
-    int command = (int)msg[1];
+  int command = msg;
     switch (command) {
     case START_CONNECTION:
       theaterChase(pixels.Color(r, g, b), 50); // Set all pixels to a random color
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
     case ROUND_START:
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
     case ROUND_WON:
-      theaterChase(pixels.Color(0, 150, 0), 50); // Show a green chase effect
+      score(currentscore,1); // Update score based on received data
       buzzer(1); // Activate buzzer
-      score(currentscore); // Update score based on received data
       break;
     case WRONG_BUTTON:
-      pixels.fill(pixels.Color(150, 0, 0)); // Set all pixels to red
-      pixels.show(); // Update the strip to show the color
+      score(currentscore,0); // Update score based on received data
       buzzer(1);
-      score(currentscore); // Update score based on received data
       break;
     case ROUND_LOST:
-      pixels.fill(pixels.Color(150, 0, 0)); // Set all pixels to red
-      pixels.show(); // Update the strip to show the color
+      score(currentscore,0); // Update score based on received data
       buzzer(1);
-      score(currentscore); // Update score based on received data
       break;
     case ROUND_END:
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
     case SCORE_UPDATE:
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
     case GAME_START:
       buttons(); // Check for button presses
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
     case GAME_WON:
       theaterChase(pixels.Color(0, 150, 0), 50); // Show a green chase effect
       buzzer(1); // Activate buzzer
-      score(currentscore); // Update score based on received data
       break;
     case GAME_LOST:
       theaterChase(pixels.Color(150, 0, 0), 50); // Show a red chase effect
       buzzer(1); // Activate buzzer
-      score(currentscore); // Update score based on received data
       break;
     default:
-      score(currentscore); // Update score based on received data
+      score(currentscore,-1); // Update score based on received data
       break;
   }
 }
-  if (strncmp(msg, "S", 1) == 0 && strlen(msg) == 2) {
-    currentscore = (int)msg[1];
-    }
-    }
+
 
 void buttons()
 {
-  starbutton = digitalRead(starpin);
-  trianglebutton = digitalRead(trianglepin);
-  hexbutton = digitalRead(hexpin);
-  squarebutton = digitalRead(squarepin);
-if(starbutton == HIGH)
-{
-  Serial1.println("B1");
+  if (isButtonPressed(starpin)) {
+    Serial.println("B1");
+    SerialA.println("B1");
     //Controller.SendButtonPress(STAR);
-}
-else if(trianglebutton == HIGH)
-{
-  Serial1.println("B3");
+  } else if (isButtonPressed(trianglepin)) {
+    Serial.println("B3");
+    SerialA.println("B3");
     //Controller.SendButtonPress(TRIANGLE);
-}
-else if(hexbutton == HIGH)
-{
-  Serial1.println("B2");
+  } else if (isButtonPressed(hexpin)) {
+    Serial.println("B2");
+    SerialA.println("B2");
     //Controller.SendButtonPress(HEXAGON);
-}
-else if(squarebutton == HIGH)
-{
-  Serial1.println("B0");
+  } else if (isButtonPressed(squarepin)) {
+    Serial.println("B0");
+    SerialA.println("B0");
     //Controller.SendButtonPress(SQUARE);
-}
+  }
   }
 
 
@@ -207,13 +204,52 @@ void theaterChase(uint32_t c, uint8_t wait) {
   }
 }
 
-void score(uint8_t j)
+void score(uint8_t j, int k) // Function to update the score on the NeoPixel strip
 {
-for(int i=0; i<j; i++) { // For each pixel...
+    if(j == 0) {
+    pixels.clear(); // Clear the pixels if no score
+    pixels.show(); // Update the strip to show the cleared state
+}
+else
+{
+  for(int i=0; i<j; i++) { // For each pixel...
 
     // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
     // Here we're using a moderately bright green color:
     pixels.setPixelColor(i, pixels.Color(0, 0, 150));
     pixels.show();
   }
+  if(k == 1){
+    for(int i=j; i<35; i++) { // For each pixel...
+
+    // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
+    // Here we're using a moderately bright red color:
+    pixels.setPixelColor(i, pixels.Color(0, 150, 0));
+    pixels.show();
+  }
+  }
+  if(k == 0){
+    for(int i=j; i<35; i++) { // For each pixel...
+
+    // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
+    // Here we're using a moderately bright green color:
+    pixels.setPixelColor(i, pixels.Color(150, 0, 0));
+    pixels.show();
+  }
+  }
+}
+}
+
+bool isButtonPressed(int buttonID){
+  bool buttonPressed = (digitalRead(buttonID) == HIGH),
+       buttonBeingHeld = buttonPressDuration[buttonID] != -1;
+
+  if(buttonPressed && !buttonBeingHeld){
+    buttonPressDuration[buttonID] = millis();
+    return true;
+  } else if (!buttonPressed){
+    buttonPressDuration[buttonID] = -1;
+  }
+
+  return false; 
 }
